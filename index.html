@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tacoma Fuel Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg: #0e0f11;
+    --surface: #16181c;
+    --surface2: #1e2128;
+    --border: #2a2d35;
+    --accent: #e8c547;
+    --accent2: #4a9eff;
+    --accent3: #5dca99;
+    --danger: #ff6b6b;
+    --text: #f0f0ee;
+    --text2: #8a8f9e;
+    --text3: #555a68;
+    --radius: 10px;
+    --mono: 'DM Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  /* Header */
+  .header {
+    padding: 2rem 2.5rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+  }
+  .header-title h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+  .header-title h1 span { color: var(--accent); }
+  .header-title p {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 6px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .header-status {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--text3);
+  }
+  .status-dot.live { background: var(--accent3); box-shadow: 0 0 6px var(--accent3); }
+
+  /* Controls bar */
+  .controls {
+    padding: 1.25rem 2.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    flex-wrap: wrap;
+    background: var(--surface);
+  }
+  .control-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .control-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+  }
+  .year-btns { display: flex; gap: 4px; flex-wrap: wrap; }
+  .year-btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .year-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0e0f11;
+    font-weight: 500;
+  }
+  .toggle-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+  .toggle {
+    width: 36px; height: 20px;
+    background: var(--border);
+    border-radius: 10px;
+    position: relative;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .toggle.on { background: var(--accent3); }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 14px; height: 14px;
+    background: white;
+    border-radius: 50%;
+    top: 3px; left: 3px;
+    transition: left 0.2s;
+  }
+  .toggle.on::after { left: 19px; }
+  .toggle-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text2);
+  }
+
+  /* Forecast slider */
+  .slider-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 120px;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+  .slider-val {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    min-width: 42px;
+  }
+
+  /* Main layout */
+  .main { padding: 2rem 2.5rem; }
+
+  /* Metric cards */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 2rem;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .card:hover::before { opacity: 1; }
+  .card-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+  .card-value {
+    font-size: 1.75rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1;
+  }
+  .card-sub {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    margin-top: 6px;
+  }
+  .card-value.yellow { color: var(--accent); }
+  .card-value.blue { color: var(--accent2); }
+  .card-value.green { color: var(--accent3); }
+  .card-value.red { color: var(--danger); }
+
+  /* Charts grid */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 2rem;
+  }
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+  }
+  .chart-card.full { grid-column: 1 / -1; }
+  .chart-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 1.25rem;
+  }
+  .chart-wrap { position: relative; width: 100%; height: 220px; }
+  .chart-wrap.tall { height: 280px; }
+
+  /* Forecast section */
+  .forecast-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .forecast-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .forecast-title .badge {
+    background: var(--accent);
+    color: #0e0f11;
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 500;
+  }
+  .forecast-grid {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 8px;
+  }
+  .forecast-month {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 8px;
+    text-align: center;
+  }
+  .forecast-month-name {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+  }
+  .forecast-month-val {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .forecast-month-fills {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text3);
+    margin-top: 4px;
+  }
+
+  /* Monthly table */
+  .table-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .table-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 1.25rem;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  th {
+    text-align: right;
+    padding: 6px 10px;
+    color: var(--text3);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid var(--border);
+    font-weight: 400;
+  }
+  th:first-child { text-align: left; }
+  td {
+    padding: 8px 10px;
+    text-align: right;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
+  }
+  td:first-child { text-align: left; color: var(--text); font-family: var(--sans); font-size: 13px; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  .val-highlight { color: var(--text); font-weight: 500; }
+  .val-good { color: var(--accent3); }
+  .val-warn { color: var(--accent); }
+
+  /* Loading / error */
+  .loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 60vh;
+    gap: 16px;
+  }
+  .loading-spinner {
+    width: 32px; height: 32px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading p { font-family: var(--mono); font-size: 12px; color: var(--text3); }
+
+  @media (max-width: 700px) {
+    .header, .controls, .main { padding-left: 1.25rem; padding-right: 1.25rem; }
+    .charts-grid { grid-template-columns: 1fr; }
+    .forecast-grid { grid-template-columns: repeat(6, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-title">
+    <h1>Tacoma <span>Fuel</span></h1>
+    <p id="data-range">Loading data...</p>
+  </div>
+  <div class="header-status">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text">Connecting...</span>
+  </div>
+</div>
+
+<div class="controls" id="controls" style="display:none">
+  <div class="control-group">
+    <span class="control-label">Year</span>
+    <div class="year-btns" id="year-btns"></div>
+  </div>
+  <div class="control-group">
+    <span class="control-label">Road trips</span>
+    <div class="toggle-wrap" onclick="toggleRoadTrips()">
+      <div class="toggle" id="rt-toggle"></div>
+      <span class="toggle-label" id="rt-label">Included</span>
+    </div>
+  </div>
+  <div class="control-group">
+    <span class="control-label">Forecast $/gal</span>
+    <div class="slider-wrap">
+      <input type="range" id="price-slider" min="2.00" max="6.00" step="0.05" value="3.00"
+        oninput="onSliderChange(this.value)">
+      <span class="slider-val" id="slider-val">$3.00</span>
+    </div>
+  </div>
+</div>
+
+<div id="loading-state" class="loading">
+  <div class="loading-spinner"></div>
+  <p>Fetching from Google Sheets...</p>
+</div>
+
+<div class="main" id="main-content" style="display:none">
+
+  <div class="cards">
+    <div class="card">
+      <div class="card-label">Total spent</div>
+      <div class="card-value yellow" id="c-total">—</div>
+      <div class="card-sub" id="c-total-sub">all time</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Avg / month</div>
+      <div class="card-value blue" id="c-monthly">—</div>
+      <div class="card-sub">excl. road trips</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Avg MPG</div>
+      <div class="card-value green" id="c-mpg">—</div>
+      <div class="card-sub" id="c-mpg-sub">trip average</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Avg price/mile</div>
+      <div class="card-value" id="c-ppm">—</div>
+      <div class="card-sub">per mile driven</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Fill-ups tracked</div>
+      <div class="card-value" id="c-fills">—</div>
+      <div class="card-sub" id="c-fills-sub">in selected range</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Total miles</div>
+      <div class="card-value" id="c-miles">—</div>
+      <div class="card-sub">odometer span</div>
+    </div>
+  </div>
+
+  <div class="charts-grid">
+    <div class="chart-card full">
+      <div class="chart-title">Monthly spend over time</div>
+      <div class="chart-wrap tall"><canvas id="spendChart" role="img" aria-label="Monthly gas spending over time"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">MPG per fill-up</div>
+      <div class="chart-wrap"><canvas id="mpgChart" role="img" aria-label="MPG per fill-up over time"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Gas price per gallon</div>
+      <div class="chart-wrap"><canvas id="priceChart" role="img" aria-label="Price per gallon over time"></canvas></div>
+    </div>
+  </div>
+
+  <div class="forecast-card">
+    <div class="forecast-title">
+      12-month spend forecast
+      <span class="badge">PROJECTION</span>
+    </div>
+    <div class="forecast-grid" id="forecast-grid"></div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-title">Monthly averages (budgeting view)</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Month</th>
+          <th>Avg fill-ups</th>
+          <th>Avg spend</th>
+          <th>Avg MPG</th>
+          <th>Avg $/gal</th>
+          <th>Avg PPM</th>
+          <th>Data years</th>
+        </tr>
+      </thead>
+      <tbody id="monthly-table"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<script>
+const SHEET_URL = 'https://script.google.com/macros/s/AKfycbzfNbJ7joFmXIsMpXdDXRN0SzIItSfKP_eulJmc72vSbA5r1x5IIUnCBOqhUewu22hx/exec';
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTH_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+let allData = [];
+let activeYears = new Set();
+let excludeRoadTrips = true;
+let forecastPrice = 3.00;
+let charts = {};
+
+async function init() {
+  try {
+    const res = await fetch(SHEET_URL);
+    if (!res.ok) throw new Error('fetch failed');
+    const raw = await res.json();
+    allData = parseData(raw);
+    document.getElementById('status-dot').classList.add('live');
+    document.getElementById('status-text').textContent = 'Live · Google Sheets';
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('main-content').style.display = 'block';
+    document.getElementById('controls').style.display = 'flex';
+    setupYearFilters();
+    render();
+  } catch(e) {
+    document.getElementById('loading-state').innerHTML = `
+      <div style="font-family:var(--mono);font-size:13px;color:var(--danger);text-align:center;max-width:400px;line-height:1.6;">
+        Could not load sheet data.<br>
+        <span style="color:var(--text3);font-size:11px;">Check that the Apps Script is deployed and the URL is correct.</span>
+      </div>`;
+  }
+}
+
+function parseData(raw) {
+  return raw.map((row, i) => {
+    const fillup = parseInt(row['Fill Up'] || row['fill_up'] || row['A'] || i+1);
+    const dateStr = row['Date'] || row['date'] || row['B'] || '';
+    const date = new Date(dateStr);
+    const mileage = parseFloat(row['Mileage'] || row['mileage'] || row['C'] || 0);
+    const gallonPrice = parseFloat(row['Gallon Price'] || row['gallon_price'] || row['E'] || 0);
+    const gallons = parseFloat(row['Gallons'] || row['gallons'] || row['F'] || 0);
+    const totalPrice = parseFloat(row['Total Price'] || row['total_price'] || row['G'] || 0);
+    return { fillup, date, mileage, gallonPrice, gallons, totalPrice, raw: row };
+  }).filter(r => !isNaN(r.date.getTime()) && r.gallons > 0)
+    .sort((a, b) => a.date - b.date)
+    .map((r, i, arr) => {
+      const prev = arr[i - 1];
+      const tripMiles = prev ? Math.max(0, r.mileage - prev.mileage) : 0;
+      const daysDriven = prev ? Math.round((r.date - prev.date) / 86400000) : 0;
+      const mpg = tripMiles > 0 && r.gallons > 0 ? tripMiles / r.gallons : null;
+      const ppm = tripMiles > 0 && r.totalPrice > 0 ? r.totalPrice / tripMiles : null;
+      const cpd = daysDriven > 0 ? r.totalPrice / daysDriven : r.totalPrice;
+      const isRoadTrip = i > 0 && daysDriven === 0;
+      return { ...r, tripMiles, daysDriven, mpg, ppm, cpd, isRoadTrip };
+    });
+}
+
+function setupYearFilters() {
+  const years = [...new Set(allData.map(r => r.date.getFullYear()))].sort();
+  activeYears = new Set(years);
+  const container = document.getElementById('year-btns');
+  years.forEach(y => {
+    const btn = document.createElement('button');
+    btn.className = 'year-btn active';
+    btn.textContent = y;
+    btn.dataset.year = y;
+    btn.onclick = () => toggleYear(y, btn);
+    container.appendChild(btn);
+  });
+}
+
+function toggleYear(year, btn) {
+  if (activeYears.has(year)) {
+    if (activeYears.size === 1) return;
+    activeYears.delete(year);
+    btn.classList.remove('active');
+  } else {
+    activeYears.add(year);
+    btn.classList.add('active');
+  }
+  render();
+}
+
+function toggleRoadTrips() {
+  excludeRoadTrips = !excludeRoadTrips;
+  const t = document.getElementById('rt-toggle');
+  const l = document.getElementById('rt-label');
+  t.className = 'toggle' + (excludeRoadTrips ? '' : ' on');
+  l.textContent = excludeRoadTrips ? 'Excluded' : 'Included';
+  render();
+}
+
+function onSliderChange(val) {
+  forecastPrice = parseFloat(val);
+  document.getElementById('slider-val').textContent = '$' + forecastPrice.toFixed(2);
+  render();
+}
+
+function getFiltered() {
+  return allData.filter(r => {
+    if (!activeYears.has(r.date.getFullYear())) return false;
+    if (excludeRoadTrips && r.isRoadTrip) return false;
+    return true;
+  });
+}
+
+function render() {
+  const data = getFiltered();
+  if (!data.length) return;
+  renderCards(data);
+  renderSpendChart(data);
+  renderMpgChart(data);
+  renderPriceChart(data);
+  renderForecast(data);
+  renderTable(data);
+  // data range label
+  const minDate = data[0].date;
+  const maxDate = data[data.length-1].date;
+  document.getElementById('data-range').textContent =
+    `${minDate.toLocaleDateString('en-US',{month:'short',year:'numeric'})} – ${maxDate.toLocaleDateString('en-US',{month:'short',year:'numeric'})} · ${data.length} fill-ups`;
+}
+
+function renderCards(data) {
+  const total = data.reduce((s, r) => s + r.totalPrice, 0);
+  const firstDate = data[0].date;
+  const lastDate = data[data.length-1].date;
+  const monthSpan = (lastDate.getFullYear() - firstDate.getFullYear()) * 12 +
+    (lastDate.getMonth() - firstDate.getMonth()) || 1;
+  const avgMonthly = total / monthSpan;
+  const mpgVals = data.filter(r => r.mpg && r.mpg > 5 && r.mpg < 50).map(r => r.mpg);
+  const avgMpg = mpgVals.reduce((a,b)=>a+b,0) / mpgVals.length;
+  const ppmVals = data.filter(r => r.ppm).map(r => r.ppm);
+  const avgPpm = ppmVals.reduce((a,b)=>a+b,0) / ppmVals.length;
+  const minOdo = data[0].mileage;
+  const maxOdo = data[data.length-1].mileage;
+
+  document.getElementById('c-total').textContent = '$' + total.toLocaleString('en-US',{maximumFractionDigits:0});
+  document.getElementById('c-monthly').textContent = '$' + avgMonthly.toFixed(0);
+  document.getElementById('c-mpg').textContent = avgMpg.toFixed(1);
+  document.getElementById('c-ppm').textContent = '$' + avgPpm.toFixed(3);
+  document.getElementById('c-fills').textContent = data.length;
+  document.getElementById('c-miles').textContent = (maxOdo - minOdo).toLocaleString();
+}
+
+function getMonthlyTotals(data) {
+  const byMonth = {};
+  data.forEach(r => {
+    const key = `${r.date.getFullYear()}-${String(r.date.getMonth()+1).padStart(2,'0')}`;
+    if (!byMonth[key]) byMonth[key] = { spend: 0, fills: 0, label: key };
+    byMonth[key].spend += r.totalPrice;
+    byMonth[key].fills++;
+  });
+  return Object.values(byMonth).sort((a,b)=>a.label.localeCompare(b.label));
+}
+
+function makeChart(id, config) {
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(document.getElementById(id), config);
+}
+
+function renderSpendChart(data) {
+  const monthly = getMonthlyTotals(data);
+  const labels = monthly.map(m => {
+    const [y, mo] = m.label.split('-');
+    return MONTH_NAMES[parseInt(mo)-1] + ' \'' + y.slice(2);
+  });
+  makeChart('spendChart', {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Monthly spend',
+        data: monthly.map(m => parseFloat(m.spend.toFixed(2))),
+        backgroundColor: '#e8c54733',
+        borderColor: '#e8c547',
+        borderWidth: 1,
+        borderRadius: 3,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          ticks: { color: '#555a68', font: { family: 'DM Mono', size: 10 }, maxRotation: 45, autoSkip: true, maxTicksLimit: 18 },
+          grid: { color: '#2a2d35' }
+        },
+        y: {
+          ticks: { color: '#555a68', font: { family: 'DM Mono', size: 10 }, callback: v => '$'+v },
+          grid: { color: '#2a2d35' }
+        }
+      }
+    }
+  });
+}
+
+function renderMpgChart(data) {
+  const valid = data.filter(r => r.mpg && r.mpg > 5 && r.mpg < 50);
+  makeChart('mpgChart', {
+    type: 'line',
+    data: {
+      labels: valid.map(r => r.date.toLocaleDateString('en-US',{month:'short',year:'2-digit'})),
+      datasets: [{
+        label: 'MPG',
+        data: valid.map(r => parseFloat(r.mpg.toFixed(1))),
+        borderColor: '#5dca99',
+        backgroundColor: '#5dca9920',
+        pointRadius: 2,
+        pointHoverRadius: 5,
+        tension: 0.3,
+        fill: true,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#555a68', font: { family: 'DM Mono', size: 10 }, maxTicksLimit: 8, maxRotation: 30 }, grid: { color: '#2a2d35' } },
+        y: { ticks: { color: '#555a68', font: { family: 'DM Mono', size: 10 } }, grid: { color: '#2a2d35' }, suggestedMin: 12, suggestedMax: 25 }
+      }
+    }
+  });
+}
+
+function renderPriceChart(data) {
+  makeChart('priceChart', {
+    type: 'line',
+    data: {
+      labels: data.map(r => r.date.toLocaleDateString('en-US',{month:'short',year:'2-digit'})),
+      datasets: [{
+        label: '$/gal',
+        data: data.map(r => parseFloat(r.gallonPrice.toFixed(2))),
+        borderColor: '#4a9eff',
+        backgroundColor: '#4a9eff20',
+        pointRadius: 2,
+        pointHoverRadius: 5,
+        tension: 0.3,
+        fill: true,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#555a68', font: { family: 'DM Mono', size: 10 }, maxTicksLimit: 8, maxRotation: 30 }, grid: { color: '#2a2d35' } },
+        y: { ticks: { color: '#555a68', font: { family: 'DM Mono', size: 10 }, callback: v => '$'+v.toFixed(2) }, grid: { color: '#2a2d35' } }
+      }
+    }
+  });
+}
+
+function getMonthStats(data) {
+  const byMonthYear = {};
+  data.forEach(r => {
+    const mo = r.date.getMonth();
+    const yr = r.date.getFullYear();
+    if (!byMonthYear[mo]) byMonthYear[mo] = {};
+    if (!byMonthYear[mo][yr]) byMonthYear[mo][yr] = { fills: 0, spend: 0, mpgVals: [], gallonPrices: [], ppmVals: [] };
+    byMonthYear[mo][yr].fills++;
+    byMonthYear[mo][yr].spend += r.totalPrice;
+    if (r.mpg && r.mpg > 5 && r.mpg < 50) byMonthYear[mo][yr].mpgVals.push(r.mpg);
+    byMonthYear[mo][yr].gallonPrices.push(r.gallonPrice);
+    if (r.ppm) byMonthYear[mo][yr].ppmVals.push(r.ppm);
+  });
+  return Array.from({length:12}, (_, mo) => {
+    const years = byMonthYear[mo] ? Object.values(byMonthYear[mo]) : [];
+    if (!years.length) return null;
+    const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
+    return {
+      mo,
+      avgFills: avg(years.map(y => y.fills)),
+      avgSpend: avg(years.map(y => y.spend)),
+      avgMpg: avg(years.flatMap(y => y.mpgVals)),
+      avgGalPrice: avg(years.flatMap(y => y.gallonPrices)),
+      avgPpm: avg(years.flatMap(y => y.ppmVals)),
+      avgGallons: avg(years.map(y => y.spend / (y.gallonPrices.reduce((a,b)=>a+b,0)/y.gallonPrices.length || 1))),
+      n: years.length
+    };
+  });
+}
+
+function renderForecast(data) {
+  const stats = getMonthStats(data);
+  const now = new Date();
+  const grid = document.getElementById('forecast-grid');
+  grid.innerHTML = '';
+  for (let i = 0; i < 12; i++) {
+    const mo = (now.getMonth() + i) % 12;
+    const stat = stats[mo];
+    let projected = '—';
+    let fills = '—';
+    if (stat) {
+      // Scale spend by ratio of forecast price to historical avg price
+      const ratio = forecastPrice / (stat.avgGalPrice || forecastPrice);
+      const projSpend = stat.avgSpend * ratio;
+      projected = '$' + projSpend.toFixed(0);
+      fills = stat.avgFills.toFixed(1) + ' fills';
+    }
+    const div = document.createElement('div');
+    div.className = 'forecast-month';
+    div.innerHTML = `
+      <div class="forecast-month-name">${MONTH_NAMES[mo]}</div>
+      <div class="forecast-month-val">${projected}</div>
+      <div class="forecast-month-fills">${fills}</div>
+    `;
+    grid.appendChild(div);
+  }
+}
+
+function renderTable(data) {
+  const stats = getMonthStats(data);
+  const tbody = document.getElementById('monthly-table');
+  tbody.innerHTML = '';
+  stats.forEach(s => {
+    if (!s) return;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${MONTH_FULL[s.mo]}</td>
+      <td class="val-highlight">${s.avgFills.toFixed(1)}</td>
+      <td class="val-highlight val-warn">$${s.avgSpend.toFixed(0)}</td>
+      <td class="${s.avgMpg > 17 ? 'val-good' : ''}">${s.avgMpg ? s.avgMpg.toFixed(1) : '—'}</td>
+      <td>$${s.avgGalPrice ? s.avgGalPrice.toFixed(2) : '—'}</td>
+      <td>${s.avgPpm ? '$'+s.avgPpm.toFixed(3) : '—'}</td>
+      <td style="color:var(--text3)">${s.n} yr${s.n>1?'s':''}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// Init road trip toggle state (excluded by default)
+document.getElementById('rt-toggle').className = 'toggle';
+document.getElementById('rt-label').textContent = 'Excluded';
+
+// Set initial slider display
+document.getElementById('slider-val').textContent = '$' + forecastPrice.toFixed(2);
+
+init();
+</script>
+</body>
+</html>
